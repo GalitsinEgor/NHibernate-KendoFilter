@@ -1,0 +1,86 @@
+﻿@using VendingWorld.DomainModel.deviceCash.model
+@using VendingWorld.DomainModel.common.helpers
+@using VendingWorld.DomainModel.deviceCash.enums
+@model VendingWorld.DomainModel.externalDevice.model.DeviceIdentityModel
+
+<div class="row mt-3">
+    <label class="col-12 boldFont">Транзакции</label>
+</div>
+<div class="row mt-1">
+    <div class="col-3">
+        @(Html.Kendo().DateTimePicker()
+            .Events(eve => eve.Change("updateGrid"))
+            .Name("DateTimeFrom")
+            .HtmlAttributes(new { style = "width: 100%", placeholder = "От" })
+        )
+    </div>
+    <div class="col-3">
+        @(Html.Kendo().DateTimePicker()
+            .Events(eve => eve.Change("updateGrid"))
+            .Name("DateTimeTo")
+            .HtmlAttributes(new { style = "width: 100%", placeholder = "До" })
+        )
+    </div>
+</div>
+<div class="row mt-3">
+    <div class="col-12">
+        <label class="boldFont" for="Total">Итог:</label>
+        <label class="boldFont" id="Total"></label>
+    </div>
+</div>
+
+<script>
+    function getDataSourceExtensions(data) {
+        if (data.Extensions && data.Extensions.TotalSum) {
+            $("#Total").text(data.Extensions.TotalSum);
+        }
+        return data;
+    }
+</script>
+
+@(Html.Kendo().Grid<DeviceTransactionModel>()
+            .Name("TransactionsGrid")
+            .HtmlAttributes(new { @class = "mt-1" })
+            .Filterable(filter => { KendoHelper.SetFilter(filter); filter.Mode(GridFilterMode.Row);  })
+            .Columns(col =>
+            {
+                col.Bound(x => x.ExternalKey).Hidden();
+                col.Bound(x => x.MoneyValue).Title("Сумма");
+                col.Bound(x => x.CashType).Title("Денежный тип");
+                col.Bound(x => x.CreationTimeUtc).Title("Дата осуществедния").Format(KendoHelper.DateTimeFormatShort());
+            })
+            .Resizable(x => x.Columns(true))
+            .Sortable()
+            .Pageable()
+            .DataSource(ds => ds.Custom()
+                .Type("aspnetmvc-ajax")
+                .PageSize(10)
+                .ServerPaging(true)
+                .ServerSorting(true)
+                .ServerFiltering(true)
+                .Events(eve => eve.Error("kendoError"))
+                .Transport(tr => tr.Read(re => re.Action("IdentityTransactionsRead", "DeviceMonitor", new { OwnerExternalKey = Model.ExternalKey }).Data("transactionsGridData")))
+                .Schema(sc => sc.Data("Data").Total("Total").Errors("Errors").Parse(@<text>function(data){return getDataSourceExtensions(data);}</text>).Model(x => { x.Id(y => y.ExternalKey); x.Field("CashType", typeof(CashType)); }))
+                ))
+
+<script>
+    function reloadIdentityTransactions() {
+        updateGrid();
+    }
+
+    function transactionsGridData() {
+        var from = $("#DateTimeFrom").data("kendoDateTimePicker").value();
+        var to = $("#DateTimeTo").data("kendoDateTimePicker").value();
+        var offset = (new Date()).getTimezoneOffset();
+
+        return {
+            "From": from,
+            "To": to,
+            "Offset": offset
+        }
+    }
+
+    function updateGrid() {
+        $('#TransactionsGrid').data('kendoGrid').dataSource.read();
+    }
+</script>
